@@ -1,0 +1,43 @@
+# Configuration for the AI Code Reviewer Bot
+vcs:
+  provider: "github"
+  github:
+    token: ${GITHUB_TOKEN}
+  gitty:
+    base_url: "https://gitty.example.com/api/v1"
+    token: ${GITTY_TOKEN}
+
+llm:
+  provider: "googleai" # or "openai"
+  model_name: "gemini-1.5-flash" # The specific model identifier (e.g., "gemini-1.5-flash", "gpt-4-turbo")
+
+  googleai:
+    api_key: ${GOOGLEAI_API_KEY}
+  openai:
+    api_key: ${OPENAI_API_KEY}
+
+# The prompt template sent to the LLM for code review.
+review_prompt: >
+  You are an expert software engineer acting as a code reviewer.
+  Your task is to review the following code changes in the file `{{.FilePath}}`.
+  The lines prefixed with '+' are new additions. The lines prefixed with '-' are deletions.
+  Please provide constructive, line-specific feedback for the new or modified lines.
+  Focus on potential bugs, performance issues, security vulnerabilities, style inconsistencies, and best practices.
+  Do not comment on correct code. If you find no issues in the provided snippet, respond with an empty JSON array `[]`.
+
+  Your response MUST be a valid JSON array of objects, where each object has:
+  1. "lineNumber" (integer): The line number in the new file where the issue is.
+  2. "comment" (string): Your concise review comment for that line.
+
+  Example of a valid response:
+  [
+    {
+      "lineNumber": 42,
+      "comment": "This function could be simplified by using a standard library helper."
+    }
+  ]
+
+  Code Snippet to Review:
+  ```diff
+  {{.CodeSnippet}}
+  ```
