@@ -16,8 +16,6 @@ import (
 	"github.com/surya84/code-reviewer-bot/pkg/vcs"
 )
 
-// FlowInput is no longer needed as we are not using Genkit flows.
-
 // PRDetails holds information about the pull request being reviewed.
 type PRDetails struct {
 	Owner    string
@@ -27,32 +25,33 @@ type PRDetails struct {
 
 // ReviewComment represents the structured response from the LLM.
 type ReviewComment struct {
-	LineNumber int    `json:"lineNumber"`
-	Comment    string `json:"comment"`
+	LineContent string `json:"line_content"`
+	Message     string `json:"message"`
 }
 
 // RunReview is the main function that orchestrates the entire review process.
-// It is a standard Go function, not a Genkit Flow.
 func RunReview(ctx context.Context, g *genkit.Genkit, prDetails *PRDetails, cfg *config.Config, vcsClient vcs.VCSAdapter) (string, error) {
 	log.Printf("Starting review for PR #%d in %s/%s", prDetails.PRNumber, prDetails.Owner, prDetails.Repo)
 
-	// 1. Fetch the PR diff.
+	commitID, err := vcsClient.GetPRCommitID(ctx, prDetails.Owner, prDetails.Repo, prDetails.PRNumber)
+	if err != nil {
+		return "", fmt.Errorf("failed to get PR commit ID: %w", err)
+	}
+	log.Printf("Found PR HEAD commit SHA: %s", commitID)
+
 	diff, err := vcsClient.GetPRDiff(ctx, prDetails.Owner, prDetails.Repo, prDetails.PRNumber)
 	if err != nil {
 		return "", fmt.Errorf("failed to get PR diff: %w", err)
 	}
 	log.Println("Successfully fetched PR diff.")
 
-	// 2. Parse the diff.
 	chunks := diffparser.Parse(diff)
 	if len(chunks) == 0 {
-		log.Println("No reviewable changes found in diff.")
 		return "No reviewable changes found.", nil
 	}
 	log.Printf("Parsed diff into %d chunks.", len(chunks))
 
-	// 3. Process each chunk.
-	totalComments := 0
+	var allComments []*vcs.Comment
 	for _, chunk := range chunks {
 		comments, err := analyzeChunk(ctx, g, cfg, chunk)
 		if err != nil {
@@ -60,33 +59,33 @@ func RunReview(ctx context.Context, g *genkit.Genkit, prDetails *PRDetails, cfg 
 			continue
 		}
 
-		if len(comments) > 0 {
-			log.Printf("Found %d comments for file %s", len(comments), chunk.FilePath)
-			for _, llmComment := range comments {
-				// 4. Post comments back to VCS.
-				comment := &vcs.Comment{
-					Body: llmComment.Comment,
-					Path: chunk.FilePath,
-					Line: llmComment.LineNumber,
-				}
-				err := vcsClient.PostReviewComment(ctx, prDetails.Owner, prDetails.Repo, prDetails.PRNumber, comment)
-				if err != nil {
-					log.Printf("Failed to post comment to %s at line %d: %v", chunk.FilePath, llmComment.LineNumber, err)
-				} else {
-					log.Printf("Posted comment to %s at line %d", chunk.FilePath, llmComment.LineNumber)
-					totalComments++
-				}
+		for _, llmComment := range comments {
+			// Find the position of the commented line within the diff hunk.
+			positionInHunk, err := findPositionForLineContent(chunk, llmComment.LineContent)
+			if err != nil {
+				log.Printf("Could not find position for line content in file %s: %v", chunk.FilePath, err)
+				continue
 			}
+			allComments = append(allComments, &vcs.Comment{
+				Body:     llmComment.Message,
+				Path:     chunk.FilePath,
+				Position: positionInHunk,
+			})
 		}
 	}
 
-	resultMessage := fmt.Sprintf("Review complete. Posted %d comments.", totalComments)
-	log.Println(resultMessage)
-
-	if totalComments == 0 {
+	if len(allComments) > 0 {
+		log.Printf("Submitting a review with %d comments.", len(allComments))
+		err := vcsClient.PostReview(ctx, prDetails.Owner, prDetails.Repo, prDetails.PRNumber, allComments, commitID)
+		if err != nil {
+			return "", fmt.Errorf("failed to post review: %w", err)
+		}
+	} else {
 		vcsClient.PostGeneralComment(ctx, prDetails.Owner, prDetails.Repo, prDetails.PRNumber, "✅ AI Review Complete: No issues found. Great work!")
 	}
 
+	resultMessage := fmt.Sprintf("Review complete. Submitted %d comments.", len(allComments))
+	log.Println(resultMessage)
 	return resultMessage, nil
 }
 
@@ -110,22 +109,44 @@ func analyzeChunk(ctx context.Context, g *genkit.Genkit, cfg *config.Config, chu
 		return nil, fmt.Errorf("failed to get text from LLM response")
 	}
 
-	jsonString := strings.TrimSpace(responseText)
-	jsonString = strings.TrimPrefix(jsonString, "```json")
-	jsonString = strings.TrimPrefix(jsonString, "```")
-
-	if jsonString == "" {
-		log.Println("LLM returned an empty JSON string. No comments to parse.")
-		return nil, nil
+	startIndex := strings.Index(responseText, "[")
+	endIndex := strings.LastIndex(responseText, "]")
+	if startIndex == -1 || endIndex == -1 || endIndex < startIndex {
+		return nil, nil // No valid JSON found
 	}
+	jsonString := responseText[startIndex : endIndex+1]
+
+	// Sanitize the JSON string to remove invalid characters like tabs before parsing.
+	sanitizedJSON := strings.ReplaceAll(jsonString, "\t", " ")
 
 	var comments []ReviewComment
-	if err := json.Unmarshal([]byte(jsonString), &comments); err != nil {
-		log.Printf("Failed to unmarshal LLM response into JSON. Raw response: '%s'", jsonString)
+	if err := json.Unmarshal([]byte(sanitizedJSON), &comments); err != nil {
 		return nil, fmt.Errorf("failed to parse LLM JSON response: %w", err)
 	}
-
 	return comments, nil
+}
+
+// findPositionForLineContent iterates through a diff hunk to find the 1-based position of a specific line.
+func findPositionForLineContent(chunk *diffparser.DiffChunk, lineContent string) (int, error) {
+	// A more robust normalization function that replaces all sequences of whitespace
+	// (spaces, tabs, etc.) with a single space for a more reliable comparison.
+	normalize := func(s string) string {
+		return strings.Join(strings.Fields(s), " ")
+	}
+
+	// Normalize the target content from the LLM.
+	target := normalize(lineContent)
+
+	lines := strings.Split(chunk.CodeSnippet, "\n")
+	for i, line := range lines {
+		// Normalize the current line from the diff for comparison.
+		current := normalize(line)
+		if current == target {
+			// The position is the 1-based index of the line in the hunk.
+			return i + 1, nil
+		}
+	}
+	return -1, fmt.Errorf("line content not found in diff hunk: '%s'", lineContent)
 }
 
 // preparePrompt populates the Go template for the LLM prompt.
