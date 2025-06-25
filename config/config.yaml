@@ -2,7 +2,7 @@
 vcs:
   provider: "github"
   github:
-    token: ${ACCESS_TOKEN}
+    token: ${ACCESS_TOKEN} # This is automatically provided by GitHub Actions
   gitty:
     base_url: "https://gitty.example.com/api/v1"
     token: ${GITTY_TOKEN}
@@ -19,22 +19,38 @@ llm:
 # The prompt template sent to the LLM for code review.
 review_prompt: >
   You are an expert code reviewer. Analyze the following code snippet from the file `{{.FilePath}}`.
+  This snippet represents newly added or significantly changed code from a Pull Request.
   The lines starting with '+' are new additions.
-  Provide suggestions for improvements *only on the lines that begin with a '+'*.
-  If there are no issues, return an empty JSON array [].
+  Provide suggestions for improvements, potential bugs, security vulnerabilities, or performance issues *only on the lines that begin with a '+'*.
+  Do not comment on existing, unchanged context lines (lines starting with ' ').
+  If there are no issues in the provided new/modified code, return an empty JSON array [].
   
-  Provide your response as a JSON array of objects. Each object must have:
-  - "line_content": (string) The full, exact text of the single line of code you are commenting on. This line MUST begin with a '+'.
-  - "message": (string) Your concise review comment for that specific line.
+  Provide your response as a JSON array of objects, where each object has the following fields:
+  - "line_number": (integer) The line number *within the provided snippet* where the suggestion applies. This line MUST begin with a '+'.
+  - "type": (string) e.g., "Bug", "Refactor", "Security", "Performance", "Readability", "Maintainability"
+  - "message": (string) A detailed explanation of the suggestion.
+  - "severity": (string) "High", "Medium", "Low", "Informational"
 
-  Example JSON response:
+  Example JSON format for suggestions:
   [
     {
-      "line_content": "+		ClientNAme := \"user name\"",
-      "message": "Typo in variable name: 'ClientNAme' should be 'ClientName'. Also, this name appears to be hardcoded, which is not ideal."
+      "type": "Refactor",
+      "line_number": 10,
+      "message": "Consider extracting this logic into a separate helper function for better readability and reusability.",
+      "severity": "Low"
+    },
+    {
+      "type": "Security",
+      "line_number": 25,
+      "message": "Potential SQL injection vulnerability. Sanitize user input before using it in the database query.",
+      "severity": "High"
     }
   ]
 
+  If no suggestions are found for the new/modified code, return an empty JSON array: []
+
+  Do not include any conversational text outside the JSON. Ensure the JSON is valid.
+  
   Code snippet to review:
   ```diff
   {{.CodeSnippet}}

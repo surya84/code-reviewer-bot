@@ -34,7 +34,7 @@ jobs:
           
           # You must add these as secrets in your GitHub repository settings.
           # Settings > Secrets and variables > Actions > New repository secret
-          GOOGLEAI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITTY_TOKEN: ${{ secrets.GITTY_TOKEN }}
         run: |
