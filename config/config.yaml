@@ -9,35 +9,33 @@ vcs:
 
 llm:
   provider: "googleai" # or "openai"
-  model_name: "gemini-1.5-flash" # The specific model identifier (e.g., "gemini-1.5-flash", "gpt-4-turbo")
+  model_name: "googleai/gemini-1.5-flash" # The specific model identifier
 
   googleai:
-    api_key: ${GOOGLEAI_API_KEY}
+    api_key: ${GEMINI_API_KEY}
   openai:
     api_key: ${OPENAI_API_KEY}
 
 # The prompt template sent to the LLM for code review.
 review_prompt: >
-  You are an expert software engineer acting as a code reviewer.
-  Your task is to review the following code changes in the file `{{.FilePath}}`.
-  The lines prefixed with '+' are new additions. The lines prefixed with '-' are deletions.
-  Please provide constructive, line-specific feedback for the new or modified lines.
-  Focus on potential bugs, performance issues, security vulnerabilities, style inconsistencies, and best practices.
-  Do not comment on correct code. If you find no issues in the provided snippet, respond with an empty JSON array `[]`.
+  You are an expert code reviewer. Analyze the following code snippet from the file `{{.FilePath}}`.
+  The lines starting with '+' are new additions.
+  Provide suggestions for improvements *only on the lines that begin with a '+'*.
+  If there are no issues, return an empty JSON array [].
+  
+  Provide your response as a JSON array of objects. Each object must have:
+  - "line_content": (string) The full, exact text of the single line of code you are commenting on. This line MUST begin with a '+'.
+  - "message": (string) Your concise review comment for that specific line.
 
-  Your response MUST be a valid JSON array of objects, where each object has:
-  1. "lineNumber" (integer): The line number in the new file where the issue is.
-  2. "comment" (string): Your concise review comment for that line.
-
-  Example of a valid response:
+  Example JSON response:
   [
     {
-      "lineNumber": 42,
-      "comment": "This function could be simplified by using a standard library helper."
+      "line_content": "+		ClientNAme := \"user name\"",
+      "message": "Typo in variable name: 'ClientNAme' should be 'ClientName'. Also, this name appears to be hardcoded, which is not ideal."
     }
   ]
 
-  Code Snippet to Review:
+  Code snippet to review:
   ```diff
   {{.CodeSnippet}}
-  ```
+  
