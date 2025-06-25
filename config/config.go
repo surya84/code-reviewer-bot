@@ -1,15 +1,17 @@
 package config
 
 import (
+	"log"
 	"os"
+
 	"gopkg.in/yaml.v3"
 )
 
 // Config holds the application's configuration.
 type Config struct {
-	VCS          VCSConfig    `yaml:"vcs"`
-	LLM          LLMConfig    `yaml:"llm"`
-	ReviewPrompt string       `yaml:"review_prompt"`
+	VCS          VCSConfig `yaml:"vcs"`
+	LLM          LLMConfig `yaml:"llm"`
+	ReviewPrompt string    `yaml:"review_prompt"`
 }
 
 // VCSConfig holds configuration for the version control system.
@@ -54,5 +56,6 @@ func LoadConfig(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.Println(cfg.VCS.GitHub.Token)
 	return &cfg, nil
 }
