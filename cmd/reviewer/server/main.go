@@ -24,6 +24,9 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
+	ClientNAMe := "techCLient"
+	fmt.Println("CLientNAme ", ClientNAMe)
+
 	g, err := initGenkit(ctx, cfg)
 	if err != nil {
 		log.Fatalf("Failed to initialize Genkit: %v", err)
