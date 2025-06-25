@@ -27,15 +27,13 @@ jobs:
       - name: Run AI Code Reviewer
         env:
           # The GitHub token is automatically provided by Actions.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
           # The context variables are available in the workflow.
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           
           # You must add these as secrets in your GitHub repository settings.
           # Settings > Secrets and variables > Actions > New repository secret
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          GCP_LOCATION: ${{ secrets.GCP_LOCATION }}
           GOOGLEAI_API_KEY: ${{ secrets.GOOGLEAI_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITTY_TOKEN: ${{ secrets.GITTY_TOKEN }}

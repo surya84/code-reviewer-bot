@@ -2,7 +2,7 @@
 vcs:
   provider: "github"
   github:
-    token: ${GITHUB_TOKEN}
+    token: ${ACCESS_TOKEN}
   gitty:
     base_url: "https://gitty.example.com/api/v1"
     token: ${GITTY_TOKEN}
