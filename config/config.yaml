@@ -2,42 +2,56 @@
 vcs:
   provider: "github"
   github:
-    token: ${ACCESS_TOKEN}
+    token: ${{secrets.ACCESS_TOKEN}} # This is automatically provided by GitHub Actions
   gitty:
     base_url: "https://gitty.example.com/api/v1"
     token: ${GITTY_TOKEN}
 
 llm:
   provider: "googleai" # or "openai"
-  model_name: "gemini-1.5-flash" # The specific model identifier (e.g., "gemini-1.5-flash", "gpt-4-turbo")
+  model_name: "googleai/gemini-1.5-flash" # The specific model identifier
 
   googleai:
-    api_key: ${GOOGLEAI_API_KEY}
+    api_key: ${{secrets.GEMINI_API_KEY}}
   openai:
     api_key: ${OPENAI_API_KEY}
 
 # The prompt template sent to the LLM for code review.
 review_prompt: >
-  You are an expert software engineer acting as a code reviewer.
-  Your task is to review the following code changes in the file `{{.FilePath}}`.
-  The lines prefixed with '+' are new additions. The lines prefixed with '-' are deletions.
-  Please provide constructive, line-specific feedback for the new or modified lines.
-  Focus on potential bugs, performance issues, security vulnerabilities, style inconsistencies, and best practices.
-  Do not comment on correct code. If you find no issues in the provided snippet, respond with an empty JSON array `[]`.
+  You are an expert code reviewer. Analyze the following code snippet from the file `{{.FilePath}}`.
+  This snippet represents newly added or significantly changed code from a Pull Request.
+  The lines starting with '+' are new additions.
+  Provide suggestions for improvements, potential bugs, security vulnerabilities, or performance issues *only on the lines that begin with a '+'*.
+  Do not comment on existing, unchanged context lines (lines starting with ' ').
+  If there are no issues in the provided new/modified code, return an empty JSON array [].
+  
+  Provide your response as a JSON array of objects, where each object has the following fields:
+  - "line_number": (integer) The line number *within the provided snippet* where the suggestion applies. This line MUST begin with a '+'.
+  - "type": (string) e.g., "Bug", "Refactor", "Security", "Performance", "Readability", "Maintainability"
+  - "message": (string) A detailed explanation of the suggestion.
+  - "severity": (string) "High", "Medium", "Low", "Informational"
 
-  Your response MUST be a valid JSON array of objects, where each object has:
-  1. "lineNumber" (integer): The line number in the new file where the issue is.
-  2. "comment" (string): Your concise review comment for that line.
-
-  Example of a valid response:
+  Example JSON format for suggestions:
   [
     {
-      "lineNumber": 42,
-      "comment": "This function could be simplified by using a standard library helper."
+      "type": "Refactor",
+      "line_number": 10,
+      "message": "Consider extracting this logic into a separate helper function for better readability and reusability.",
+      "severity": "Low"
+    },
+    {
+      "type": "Security",
+      "line_number": 25,
+      "message": "Potential SQL injection vulnerability. Sanitize user input before using it in the database query.",
+      "severity": "High"
     }
   ]
 
-  Code Snippet to Review:
+  If no suggestions are found for the new/modified code, return an empty JSON array: []
+
+  Do not include any conversational text outside the JSON. Ensure the JSON is valid.
+  
+  Code snippet to review:
   ```diff
   {{.CodeSnippet}}
-  ```
+  
