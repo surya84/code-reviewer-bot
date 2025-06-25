@@ -1,17 +1,18 @@
 package diffparser
 
 import (
+	"strconv"
 	"strings"
 )
 
-// DiffChunk represents a piece of a diff for a single file, suitable for analysis.
+// DiffChunk represents a single hunk of a diff for a single file.
 type DiffChunk struct {
-	FilePath    string
-	CodeSnippet string
+	FilePath     string
+	CodeSnippet  string
+	StartLineNew int // The starting line number of this hunk in the new file.
 }
 
-// Parse takes a raw diff string (in unified format) and splits it into
-// chunks that can be analyzed independently.
+// Parse takes a raw diff string and splits it into analyzable hunks.
 func Parse(diffStr string) []*DiffChunk {
 	var chunks []*DiffChunk
 
@@ -25,31 +26,44 @@ func Parse(diffStr string) []*DiffChunk {
 		if len(parts) < 2 {
 			continue
 		}
-		
-		// Extract file path from the first line (e.g., "path/to/file.go b/path/to/file.go")
+
 		headerParts := strings.Fields(parts[0])
 		if len(headerParts) < 2 {
 			continue
 		}
 		filePath := strings.TrimPrefix(headerParts[1], "b/")
-
-		// The rest is the content of the diff for this file
 		content := parts[1]
-		
+
+		// Split the content by hunk headers.
 		hunks := strings.Split(content, "\n@@")
 		for i, hunk := range hunks {
-			if i == 0 { // First part is usually file mode info, not a hunk
+			if i == 0 { // Skip file mode info before the first hunk.
 				continue
 			}
-			
-			// Re-add the separator for the snippet
+
+			// Extract the starting line number for the new file.
+			hunkHeaderEnd := strings.Index(hunk, "@@")
+			if hunkHeaderEnd == -1 {
+				continue
+			}
+			headerLine := hunk[:hunkHeaderEnd] // e.g., " -10,6 +10,7 "
+			headerParts := strings.Fields(headerLine)
+			var startLine int
+			if len(headerParts) > 1 {
+				// The new file info is the second part, e.g., "+10,7"
+				lineInfo := strings.Split(strings.TrimPrefix(headerParts[1], "+"), ",")
+				startLine, _ = strconv.Atoi(lineInfo[0])
+			}
+
+			// Re-add the separator for the snippet.
 			codeSnippet := "@@" + hunk
-			
-			// We only care about hunks that have actual changes
+
+			// Only create a chunk if it has actual changes.
 			if strings.Contains(hunk, "\n+") || strings.Contains(hunk, "\n-") {
 				chunk := &DiffChunk{
-					FilePath:    filePath,
-					CodeSnippet: codeSnippet,
+					FilePath:     filePath,
+					CodeSnippet:  codeSnippet,
+					StartLineNew: startLine,
 				}
 				chunks = append(chunks, chunk)
 			}

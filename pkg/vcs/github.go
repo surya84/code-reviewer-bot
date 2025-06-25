@@ -20,10 +20,8 @@ func NewGitHubClient(ctx context.Context, token string) *GitHubClient {
 	return &GitHubClient{client: github.NewClient(tc)}
 }
 
-// GetPRDiff fetches the pull request diff from GitHub using the special .diff media type.
+// GetPRDiff fetches the pull request diff from GitHub.
 func (g *GitHubClient) GetPRDiff(ctx context.Context, owner, repo string, prNumber int) (string, error) {
-	// The `github.RawOptions{Type: github.Diff}` tells the client to request
-	// the text/vnd.github.v3.diff format.
 	diff, _, err := g.client.PullRequests.GetRaw(ctx, owner, repo, prNumber, github.RawOptions{Type: github.Diff})
 	if err != nil {
 		return "", fmt.Errorf("failed to get PR diff from GitHub: %w", err)
@@ -31,19 +29,43 @@ func (g *GitHubClient) GetPRDiff(ctx context.Context, owner, repo string, prNumb
 	return diff, nil
 }
 
-// PostReviewComment posts a single review comment to a pull request on GitHub.
-func (g *GitHubClient) PostReviewComment(ctx context.Context, owner, repo string, prNumber int, comment *Comment) error {
-	prComment := &github.PullRequestComment{
-		Body: &comment.Body,
-		Path: &comment.Path,
-		Line: &comment.Line,
-		// Using Side: "RIGHT" ensures the comment is on the new code in a side-by-side diff.
-		Side: github.String("RIGHT"),
+// GetPRCommitID fetches the SHA of the HEAD commit of a pull request.
+func (g *GitHubClient) GetPRCommitID(ctx context.Context, owner, repo string, prNumber int) (string, error) {
+	pr, _, err := g.client.PullRequests.Get(ctx, owner, repo, prNumber)
+	if err != nil {
+		return "", fmt.Errorf("failed to get pull request details: %w", err)
+	}
+	if pr.Head == nil || pr.Head.SHA == nil {
+		return "", fmt.Errorf("could not retrieve HEAD commit SHA for PR #%d", prNumber)
+	}
+	return *pr.Head.SHA, nil
+}
+
+// PostReview submits a single review to a pull request with multiple line-specific comments.
+func (g *GitHubClient) PostReview(ctx context.Context, owner, repo string, prNumber int, comments []*Comment, commitID string) error {
+	if len(comments) == 0 {
+		return nil // Nothing to do.
 	}
 
-	_, _, err := g.client.PullRequests.CreateComment(ctx, owner, repo, prNumber, prComment)
+	var reviewComments []*github.DraftReviewComment
+	for _, c := range comments {
+		comment := &github.DraftReviewComment{
+			Path:     &c.Path,
+			Position: &c.Position,
+			Body:     &c.Body,
+		}
+		reviewComments = append(reviewComments, comment)
+	}
+
+	reviewRequest := &github.PullRequestReviewRequest{
+		CommitID: &commitID,
+		Event:    github.String("COMMENT"), // Post comments without changing the PR state.
+		Comments: reviewComments,
+	}
+
+	_, _, err := g.client.PullRequests.CreateReview(ctx, owner, repo, prNumber, reviewRequest)
 	if err != nil {
-		return fmt.Errorf("failed to post review comment to GitHub: %w", err)
+		return fmt.Errorf("failed to create review: %w", err)
 	}
 	return nil
 }
@@ -55,7 +77,7 @@ func (g *GitHubClient) PostGeneralComment(ctx context.Context, owner, repo strin
 	}
 	_, _, err := g.client.Issues.CreateComment(ctx, owner, repo, prNumber, issueComment)
 	if err != nil {
-		return fmt.Errorf("failed to post general comment to GitHub: %w", err)
+		return fmt.Errorf("failed to post general comment: %w", err)
 	}
 	return nil
 }
