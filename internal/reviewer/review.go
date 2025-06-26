@@ -12,6 +12,7 @@ import (
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/genkit"
 	"github.com/surya84/code-reviewer-bot/config"
+	"github.com/surya84/code-reviewer-bot/constants"
 	"github.com/surya84/code-reviewer-bot/internal/diffparser"
 	"github.com/surya84/code-reviewer-bot/pkg/vcs"
 )
@@ -151,7 +152,7 @@ func findPositionForLineContent(chunk *diffparser.DiffChunk, lineContent string)
 
 // preparePrompt populates the Go template for the LLM prompt.
 func preparePrompt(promptTmpl, filePath, codeSnippet string) (string, error) {
-	tmpl, err := template.New("review_prompt").Parse(promptTmpl)
+	tmpl, err := template.New(constants.REVIEW_PROMPT).Parse(promptTmpl)
 	if err != nil {
 		return "", err
 	}

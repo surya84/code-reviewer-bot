@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/go-github/v62/github"
 	"github.com/surya84/code-reviewer-bot/config"
+	"github.com/surya84/code-reviewer-bot/constants"
 	"github.com/surya84/code-reviewer-bot/internal/reviewer"
 	"github.com/surya84/code-reviewer-bot/pkg/vcs"
 )
@@ -46,9 +47,10 @@ func (h *GitHubWebhookHandler) Handle(c *gin.Context) {
 	switch event := event.(type) {
 	case *github.PullRequestEvent:
 		action := event.GetAction()
-		if action == "opened" || action == "synchronize" {
+		if action == constants.OPENED || action == constants.SYNCHRONIZE {
 			log.Printf("Received pull_request '%s' event for PR #%d", action, event.GetNumber())
-			go h.processPullRequest(c.Request.Context(), event)
+			// CORRECTED: Start the background task without passing the request's context.
+			go h.processPullRequest(event)
 			c.String(http.StatusOK, "Event received and is being processed.")
 		} else {
 			log.Printf("Ignoring pull_request action: %s", action)
@@ -60,10 +62,14 @@ func (h *GitHubWebhookHandler) Handle(c *gin.Context) {
 	}
 }
 
-// processPullRequest calls the main review function directly.
-func (h *GitHubWebhookHandler) processPullRequest(ctx context.Context, event *github.PullRequestEvent) {
+// processPullRequest now creates its own independent context.
+func (h *GitHubWebhookHandler) processPullRequest(event *github.PullRequestEvent) {
+	// CORRECTED: Create a new background context that is not tied to the HTTP request.
+	// This ensures it will not be canceled when the webhook handler returns a response.
+	ctx := context.Background()
+
 	pr := event.GetPullRequest()
-	if pr.GetState() != "open" {
+	if pr.GetState() != constants.OPEN {
 		log.Printf("Ignoring PR #%d because its state is '%s'", pr.GetNumber(), pr.GetState())
 		return
 	}
@@ -77,11 +83,11 @@ func (h *GitHubWebhookHandler) processPullRequest(ctx context.Context, event *gi
 		log.Printf("Error creating VCS client for PR #%d: %v", prDetails.PRNumber, err)
 		return
 	}
-	
+
 	// Directly call the standard Go function that orchestrates the review.
 	_, err = reviewer.RunReview(ctx, h.g, prDetails, h.config, vcsClient)
 	if err != nil {
-		log.Printf("Code review flow failed for PR #%d: %v", prDetails.PRNumber, err)
+		log.Printf("Code review failed for PR #%d: %v", prDetails.PRNumber, err)
 		vcsClient.PostGeneralComment(ctx, prDetails.Owner, prDetails.Repo, prDetails.PRNumber, "❌ AI Review Failed: An internal error occurred.")
 	}
 }
