@@ -25,27 +25,47 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	ClientNAMe := "techCLient"
-	fmt.Println("CLientNAme ", ClientNAMe)
-
 	g, err := initGenkit(ctx, cfg)
 	if err != nil {
 		log.Fatalf("Failed to initialize Genkit: %v", err)
 	}
 
-	githubWebhookSecret := os.Getenv("GITHUB_WEBHOOK_SECRET")
-	if githubWebhookSecret == "" {
-		log.Fatalf("GITHUB_WEBHOOK_SECRET environment variable not set")
-	}
-
-	// The handler is now simpler and doesn't need a flow passed to it.
-	githubHandler, err := webhook.NewGitHubWebhookHandler(g, cfg, githubWebhookSecret)
-	if err != nil {
-		log.Fatalf("Failed to create GitHub webhook handler: %v", err)
-	}
-
 	router := gin.Default()
-	router.POST("/api/github/webhook", githubHandler.Handle)
+
+	// Try to set up the GitHub handler.
+	githubWebhookSecret := os.Getenv("GITHUB_WEBHOOK_SECRET")
+	githubToken := os.Getenv("GITHUB_TOKEN")
+	if githubWebhookSecret != "" && githubToken != "" {
+		log.Println("GitHub credentials found. Initializing GitHub handler...")
+		githubHandler, err := webhook.NewGitHubWebhookHandler(g, cfg, githubWebhookSecret)
+		if err != nil {
+			log.Printf("WARNING: Could not create GitHub webhook handler: %v", err)
+		} else {
+			router.POST("/api/github/webhook", githubHandler.Handle)
+			log.Println("✅ GitHub webhook endpoint (/api/github/webhook) is active.")
+		}
+	} else {
+		log.Println("INFO: GITHUB_WEBHOOK_SECRET or GITHUB_TOKEN not found. Skipping GitHub handler setup.")
+	}
+
+	// Try to set up the Gitea handler.
+	giteaWebhookSecret := os.Getenv("GITEA_WEBHOOK_SECRET")
+	giteaToken := os.Getenv("GITEA_TOKEN")
+	if giteaWebhookSecret != "" && giteaToken != "" {
+		log.Println("Gitea credentials found. Initializing Gitea handler...")
+		giteaHandler, err := webhook.NewGiteaWebhookHandler(g, cfg, giteaWebhookSecret)
+		if err != nil {
+			log.Printf("WARNING: Could not create Gitea webhook handler: %v", err)
+		} else {
+			router.POST("/api/gitea/webhook", giteaHandler.Handle)
+			log.Println("✅ Gitea webhook endpoint (/api/gitea/webhook) is active.")
+		}
+	} else {
+		log.Println("INFO: GITEA_WEBHOOK_SECRET or GITEA_TOKEN not found. Skipping Gitea handler setup.")
+	}
+
+	// --- End of Handler Registration ---
+
 	router.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, "AI Code Reviewer Bot is running.")
 	})
@@ -61,6 +81,7 @@ func main() {
 	}
 }
 
+// initGenkit initializes the Genkit instance and loads the appropriate LLM plugin.
 func initGenkit(ctx context.Context, cfg *config.Config) (*genkit.Genkit, error) {
 	var plugin genkit.Plugin
 	switch cfg.LLM.Provider {

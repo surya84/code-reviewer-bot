@@ -18,12 +18,11 @@ func NewVCSClient(ctx context.Context, cfg *config.VCSConfig) (VCSAdapter, error
 			return nil, fmt.Errorf("github token is not configured")
 		}
 		return NewGitHubClient(ctx, cfg.GitHub.Token), nil
-	case constants.GITTY:
-		if cfg.Gitty.Token == "" {
-			return nil, fmt.Errorf("gitty token is not configured")
+	case constants.GITEA: // Changed from "gitty" for clarity
+		if cfg.Gitea.Token == "" {
+			return nil, fmt.Errorf("gitea token is not configured")
 		}
-		// This returns the placeholder Gitty client.
-		return NewGittyClient(ctx, cfg.Gitty.BaseURL, cfg.Gitty.Token), nil
+		return NewGiteaClient(ctx, cfg.Gitea.BaseURL, cfg.Gitea.Token), nil
 	default:
 		return nil, fmt.Errorf("unsupported VCS provider: %s", cfg.Provider)
 	}
