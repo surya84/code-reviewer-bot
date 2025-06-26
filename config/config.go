@@ -17,7 +17,7 @@ type Config struct {
 type VCSConfig struct {
 	Provider string       `yaml:"provider"`
 	GitHub   GitHubConfig `yaml:"github"`
-	Gitty    GittyConfig  `yaml:"gitty"`
+	Gitea    GiteaConfig  `yaml:"gitea"`
 }
 
 // GitHubConfig holds GitHub-specific settings.
@@ -25,8 +25,8 @@ type GitHubConfig struct {
 	Token string `yaml:"token"`
 }
 
-// GittyConfig holds Gitty-specific settings (for demonstration).
-type GittyConfig struct {
+// GiteaConfig holds Gitea-specific settings (for demonstration).
+type GiteaConfig struct {
 	BaseURL string `yaml:"base_url"`
 	Token   string `yaml:"token"`
 }

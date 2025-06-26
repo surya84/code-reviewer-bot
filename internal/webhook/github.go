@@ -48,24 +48,20 @@ func (h *GitHubWebhookHandler) Handle(c *gin.Context) {
 	case *github.PullRequestEvent:
 		action := event.GetAction()
 		if action == constants.OPENED || action == constants.SYNCHRONIZE {
-			log.Printf("Received pull_request '%s' event for PR #%d", action, event.GetNumber())
-			// CORRECTED: Start the background task without passing the request's context.
+			log.Printf("Received GitHub PR event: %s for PR #%d", action, event.GetNumber())
 			go h.processPullRequest(event)
-			c.String(http.StatusOK, "Event received and is being processed.")
 		} else {
-			log.Printf("Ignoring pull_request action: %s", action)
-			c.String(http.StatusOK, "Event ignored.")
+			log.Printf("Ignoring GitHub PR action: %s", action)
 		}
+		c.String(http.StatusOK, "Event received.")
 	default:
-		log.Printf("Ignoring webhook event type: %T", event)
+		log.Printf("Ignoring GitHub webhook event type: %T", event)
 		c.String(http.StatusOK, "Event type ignored.")
 	}
 }
 
-// processPullRequest now creates its own independent context.
+// processPullRequest now explicitly creates a GitHubClient.
 func (h *GitHubWebhookHandler) processPullRequest(event *github.PullRequestEvent) {
-	// CORRECTED: Create a new background context that is not tied to the HTTP request.
-	// This ensures it will not be canceled when the webhook handler returns a response.
 	ctx := context.Background()
 
 	pr := event.GetPullRequest()
@@ -78,16 +74,13 @@ func (h *GitHubWebhookHandler) processPullRequest(event *github.PullRequestEvent
 		Repo:     pr.Base.Repo.GetName(),
 		PRNumber: pr.GetNumber(),
 	}
-	vcsClient, err := vcs.NewVCSClient(ctx, &h.config.VCS)
-	if err != nil {
-		log.Printf("Error creating VCS client for PR #%d: %v", prDetails.PRNumber, err)
-		return
-	}
 
-	// Directly call the standard Go function that orchestrates the review.
-	_, err = reviewer.RunReview(ctx, h.g, prDetails, h.config, vcsClient)
+	// CORRECTED: Explicitly create a GitHub client, ignoring the static config provider.
+	vcsClient := vcs.NewGitHubClient(ctx, h.config.VCS.GitHub.Token)
+
+	_, err := reviewer.RunReview(ctx, h.g, prDetails, h.config, vcsClient)
 	if err != nil {
-		log.Printf("Code review failed for PR #%d: %v", prDetails.PRNumber, err)
+		log.Printf("Code review failed for GitHub PR #%d: %v", prDetails.PRNumber, err)
 		vcsClient.PostGeneralComment(ctx, prDetails.Owner, prDetails.Repo, prDetails.PRNumber, "❌ AI Review Failed: An internal error occurred.")
 	}
 }

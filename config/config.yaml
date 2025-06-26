@@ -1,11 +1,11 @@
 # Configuration for the AI Code Reviewer Bot
 vcs:
-  provider: "github"
+  #provider: "gitea"
   github:
     token: ${GITHUB_TOKEN} # This is automatically provided by GitHub Actions
-  gitty:
-    base_url: "https://gitty.example.com/api/v1"
-    token: ${GITTY_TOKEN}
+  gitea: 
+    base_url: "https://gitea.com/api/v1" # Or your self-hosted instance's API URL
+    token: ${GITEA_TOKEN}
 
 llm:
   provider: "googleai" # or "openai"

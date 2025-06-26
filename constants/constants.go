@@ -10,7 +10,7 @@ const (
 	REPO_OWNER        string = "REPO_OWNER"
 	REPO_NAME         string = "REPO_NAME"
 	GITHUB_REPOSITORY string = "GITHUB_REPOSITORY"
-	GITTY             string = "gitty"
+	GITEA             string = "gitea"
 	OPEN              string = "open"
 	REVIEW_PROMPT     string = "review_prompt"
 	GOOGLEAI          string = "googleai"
