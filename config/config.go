@@ -1,7 +1,6 @@
 package config
 
 import (
-	"log"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -56,6 +55,6 @@ func LoadConfig(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Println(cfg.VCS.GitHub.Token)
+
 	return &cfg, nil
 }

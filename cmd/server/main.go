@@ -12,6 +12,7 @@ import (
 	"github.com/firebase/genkit/go/plugins/googlegenai"
 	"github.com/gin-gonic/gin"
 	"github.com/surya84/code-reviewer-bot/config"
+	"github.com/surya84/code-reviewer-bot/constants"
 	"github.com/surya84/code-reviewer-bot/internal/webhook"
 )
 
@@ -23,6 +24,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+
+	ClientNAMe := "techCLient"
+	fmt.Println("CLientNAme ", ClientNAMe)
 
 	g, err := initGenkit(ctx, cfg)
 	if err != nil {
@@ -60,9 +64,9 @@ func main() {
 func initGenkit(ctx context.Context, cfg *config.Config) (*genkit.Genkit, error) {
 	var plugin genkit.Plugin
 	switch cfg.LLM.Provider {
-	case "googleai":
+	case constants.GOOGLEAI:
 		plugin = &googlegenai.GoogleAI{APIKey: cfg.LLM.GoogleAI.APIKey}
-	case "openai":
+	case constants.OPENAI:
 		plugin = &openai.OpenAI{APIKey: cfg.LLM.OpenAI.APIKey}
 	default:
 		return nil, fmt.Errorf("unsupported LLM provider in config: %s", cfg.LLM.Provider)
