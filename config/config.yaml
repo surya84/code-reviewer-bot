@@ -9,7 +9,7 @@ vcs:
 
 llm:
   provider: "googleai" # or "openai"
-  model_name: "googleai/gemini-2.5-flash" # The specific model identifier
+  model_name: "googleai/gemini-1.5-flash" # The specific model identifier
   #model_name: "openai/gpt-3.5-turbo" # The specific model identifier for OpenAI
 
   googleai:
