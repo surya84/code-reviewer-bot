@@ -47,7 +47,7 @@ func (h *GitHubWebhookHandler) Handle(c *gin.Context) {
 	switch event := event.(type) {
 	case *github.PullRequestEvent:
 		action := event.GetAction()
-		if action == constants.OPENED || action == constants.SYNCHRONIZE {
+		if action == constants.OPENED || action == constants.SYNCHRONIZE || action == constants.REOPENED {
 			log.Printf("Received GitHub PR event: %s for PR #%d", action, event.GetNumber())
 			go h.processPullRequest(event)
 		} else {

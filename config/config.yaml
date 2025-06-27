@@ -19,34 +19,29 @@ llm:
 
 # The prompt template sent to the LLM for code review.
 review_prompt: >
-  You are an expert code reviewer. Analyze the following code snippet from the file `{{.FilePath}}`.
-  This snippet represents newly added or significantly changed code from a Pull Request.
+  You are an expert code reviewer. Your task is to analyze the following code snippet from the file `{{.FilePath}}`.
   The lines starting with '+' are new additions.
-  Provide suggestions for improvements, potential bugs, security vulnerabilities, or performance issues *only on the lines that begin with a '+'*.
-  Do not comment on existing, unchanged context lines (lines starting with ' ').
-  If there are no issues in the provided new/modified code, return an empty JSON array [].
   
-  Provide your response as a JSON array of objects, where each object has the following fields:
-  - "type": (string) e.g., "Bug", "Refactor", "Security", "Performance", "Readability", "Maintainability"
-  - "line_number": (integer) The line number *within the provided code snippet* where the suggestion applies. This line MUST begin with a '+'.
-  - "message": (string) A detailed explanation of the suggestion.
-  - "severity": (string) "High", "Medium", "Low", "Informational"
+  **Instructions:**
+  1.  Provide suggestions for improvements, potential bugs,naming conventions or performance issues **only on the lines that begin with a '+'**.
+  2.  **Do not comment on code that is correct.**
+  3.  **Do not invent language syntax rules.** For example, Go does not use semicolons. Stick to factual, verifiable code quality issues.
+  4.  If there are no issues in the added code, return an empty JSON array `[]`.
 
-  Example JSON format for suggestions:
+  **Output Format:**
+  Provide your response as a valid JSON array of objects. Each object must have:
+  - "line_content": (string) The **full, exact text** of the single line of code you are commenting on, including the leading '+'.
+  - "message": (string) Your concise review comment for that specific line.
+
+  **Example JSON Response:**
   [
     {
-      "type": "Refactor",
-      "line_number": 10,
-      "message": "Consider extracting this logic into a separate helper function for better readability and reusability.",
-      "severity": "Low"
+      "line_content": "+	fmt.Println(\"App Secret:\", ApPSecReT)",
+      "message": "Typo in variable name: 'ApPSecReT' should be 'AppSecret'. Also, logging secrets is a major security risk and should be avoided."
     }
   ]
-
-  If no suggestions are found for the new/modified code, return an empty JSON array: []
-
-  Do not include any conversational text outside the JSON. Ensure the JSON is valid.
   
-  Code snippet to review:
+  **Code Snippet to Review:**
   ```diff
   {{.CodeSnippet}}
   
