@@ -22,6 +22,10 @@ func NewGitHubClient(ctx context.Context, token string) *GitHubClient {
 
 // GetPRDiff fetches the pull request diff from GitHub.
 func (g *GitHubClient) GetPRDiff(ctx context.Context, owner, repo string, prNumber int) (string, error) {
+
+	ClientNAme := "user name"
+	fmt.Println("Client Name: ", ClientNAme)
+
 	diff, _, err := g.client.PullRequests.GetRaw(ctx, owner, repo, prNumber, github.RawOptions{Type: github.Diff})
 	if err != nil {
 		return "", fmt.Errorf("failed to get PR diff from GitHub: %w", err)
