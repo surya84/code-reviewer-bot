@@ -65,7 +65,7 @@ func (h *GiteaWebhookHandler) Handle(c *gin.Context) {
 	}
 
 	action := payload.Action
-	if action == constants.OPENED || action == constants.SYNCHRONIZE {
+	if action == constants.OPENED || action == constants.SYNCHRONIZE || action == constants.REOPENED {
 		log.Printf("Received Gitea PR event: %s for PR #%d", action, payload.Number)
 		go h.processPullRequest(&payload)
 		c.String(http.StatusOK, "Event received.")

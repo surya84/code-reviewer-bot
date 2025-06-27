@@ -24,12 +24,10 @@ type PRDetails struct {
 	PRNumber int
 }
 
-// ReviewComment represents the structured response from the LLM, matching your new prompt.
+// ReviewComment represents the structured response from the LLM, based on the line_content prompt.
 type ReviewComment struct {
-	Type       string `json:"type"`
-	LineNumber int    `json:"line_number"`
-	Message    string `json:"message"`
-	Severity   string `json:"severity"`
+	LineContent string `json:"line_content"`
+	Message     string `json:"message"`
 }
 
 // RunReview is the main function that orchestrates the entire review process.
@@ -64,14 +62,18 @@ func RunReview(ctx context.Context, g *genkit.Genkit, prDetails *PRDetails, cfg 
 		}
 
 		for _, llmComment := range comments {
-			// The LLM now gives us the position within the snippet directly.
-			// Format the comment body to be more descriptive using the new fields.
-			commentBody := fmt.Sprintf("**[%s]** (%s)\n\n%s", llmComment.Type, llmComment.Severity, llmComment.Message)
-
+			// Find both the position-in-hunk and the absolute file line number for the commented line.
+			positionInHunk, fileLineNumber, err := findLocationForLineContent(chunk, llmComment.LineContent)
+			if err != nil {
+				log.Printf("Could not find location for line content in file %s: %v", chunk.FilePath, err)
+				continue
+			}
+			// Create a comment object with all necessary information for any VCS.
 			allComments = append(allComments, &vcs.Comment{
-				Body:     commentBody,
+				Body:     llmComment.Message,
 				Path:     chunk.FilePath,
-				Position: llmComment.LineNumber, // Use the line number from the AI directly as the position.
+				Position: positionInHunk, // For GitHub
+				Line:     fileLineNumber, // For Gitea
 			})
 		}
 	}
@@ -138,6 +140,46 @@ func analyzeChunk(ctx context.Context, g *genkit.Genkit, cfg *config.Config, chu
 		return nil, fmt.Errorf("failed to parse LLM JSON response: %w", err)
 	}
 	return comments, nil
+}
+
+// findLocationForLineContent iterates through a diff hunk to find both the 1-based position
+// and the absolute file line number for a specific line of code.
+func findLocationForLineContent(chunk *diffparser.DiffChunk, lineContent string) (int, int, error) {
+	normalize := func(s string) string {
+		return strings.Join(strings.Fields(s), " ")
+	}
+
+	target := normalize(lineContent)
+	if target == "" {
+		return -1, -1, fmt.Errorf("LLM provided empty line content")
+	}
+
+	lines := strings.Split(chunk.CodeSnippet, "\n")
+	hunkPosition := 0
+	currentFileNumber := chunk.StartLineNew
+
+	for i, line := range lines {
+		hunkPosition = i + 1 // 1-based position within the hunk
+
+		if strings.HasPrefix(line, "@@") || strings.HasPrefix(line, "-") {
+			continue
+		}
+
+		// Normalize the current line from the diff for comparison.
+		current := normalize(line)
+		if current == target {
+			// Ensure the matched line is an added line, which is what we should be commenting on.
+			if !strings.HasPrefix(strings.TrimSpace(line), "+") {
+				return -1, -1, fmt.Errorf("matched line is not an added line ('+'): '%s'", line)
+			}
+			// Return both the position in the hunk and the absolute file line number.
+			return hunkPosition, currentFileNumber, nil
+		}
+
+		// Increment the file line counter for both context (' ') and added ('+') lines.
+		currentFileNumber++
+	}
+	return -1, -1, fmt.Errorf("line content not found in diff hunk: '%s'", lineContent)
 }
 
 // preparePrompt populates the Go template for the LLM prompt.
