@@ -44,7 +44,7 @@ func (g *GitHubClient) GetPRCommitID(ctx context.Context, owner, repo string, pr
 // PostReview submits a single review to a pull request with multiple line-specific comments.
 func (g *GitHubClient) PostReview(ctx context.Context, owner, repo string, prNumber int, comments []*Comment, commitID string) error {
 	if len(comments) == 0 {
-		return nil // Nothing to do.
+		return nil
 	}
 
 	var reviewComments []*github.DraftReviewComment

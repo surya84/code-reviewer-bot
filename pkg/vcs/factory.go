@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	// Corrected import path without markdown
 	"github.com/surya84/code-reviewer-bot/config"
 	"github.com/surya84/code-reviewer-bot/constants"
 )
@@ -18,7 +17,7 @@ func NewVCSClient(ctx context.Context, cfg *config.VCSConfig) (VCSAdapter, error
 			return nil, fmt.Errorf("github token is not configured")
 		}
 		return NewGitHubClient(ctx, cfg.GitHub.Token), nil
-	case constants.GITEA: // Changed from "gitty" for clarity
+	case constants.GITEA:
 		if cfg.Gitea.Token == "" {
 			return nil, fmt.Errorf("gitea token is not configured")
 		}

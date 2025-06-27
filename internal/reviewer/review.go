@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"regexp"
 	"strings"
 
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/genkit"
 	"github.com/surya84/code-reviewer-bot/config"
-	"github.com/surya84/code-reviewer-bot/constants"
 	"github.com/surya84/code-reviewer-bot/internal/diffparser"
 	"github.com/surya84/code-reviewer-bot/pkg/vcs"
 )
@@ -24,10 +24,12 @@ type PRDetails struct {
 	PRNumber int
 }
 
-// ReviewComment represents the structured response from the LLM.
+// ReviewComment represents the structured response from the LLM, matching your new prompt.
 type ReviewComment struct {
-	LineContent string `json:"line_content"`
-	Message     string `json:"message"`
+	Type       string `json:"type"`
+	LineNumber int    `json:"line_number"`
+	Message    string `json:"message"`
+	Severity   string `json:"severity"`
 }
 
 // RunReview is the main function that orchestrates the entire review process.
@@ -36,9 +38,10 @@ func RunReview(ctx context.Context, g *genkit.Genkit, prDetails *PRDetails, cfg 
 
 	commitID, err := vcsClient.GetPRCommitID(ctx, prDetails.Owner, prDetails.Repo, prDetails.PRNumber)
 	if err != nil {
-		return "", fmt.Errorf("failed to get PR commit ID: %w", err)
+		log.Printf("Warning: could not get PR commit ID: %v", err)
+	} else {
+		log.Printf("Found PR HEAD commit SHA: %s", commitID)
 	}
-	log.Printf("Found PR HEAD commit SHA: %s", commitID)
 
 	diff, err := vcsClient.GetPRDiff(ctx, prDetails.Owner, prDetails.Repo, prDetails.PRNumber)
 	if err != nil {
@@ -61,16 +64,14 @@ func RunReview(ctx context.Context, g *genkit.Genkit, prDetails *PRDetails, cfg 
 		}
 
 		for _, llmComment := range comments {
-			// Find the position of the commented line within the diff hunk.
-			positionInHunk, err := findPositionForLineContent(chunk, llmComment.LineContent)
-			if err != nil {
-				log.Printf("Could not find position for line content in file %s: %v", chunk.FilePath, err)
-				continue
-			}
+			// The LLM now gives us the position within the snippet directly.
+			// Format the comment body to be more descriptive using the new fields.
+			commentBody := fmt.Sprintf("**[%s]** (%s)\n\n%s", llmComment.Type, llmComment.Severity, llmComment.Message)
+
 			allComments = append(allComments, &vcs.Comment{
-				Body:     llmComment.Message,
+				Body:     commentBody,
 				Path:     chunk.FilePath,
-				Position: positionInHunk,
+				Position: llmComment.LineNumber, // Use the line number from the AI directly as the position.
 			})
 		}
 	}
@@ -82,12 +83,27 @@ func RunReview(ctx context.Context, g *genkit.Genkit, prDetails *PRDetails, cfg 
 			return "", fmt.Errorf("failed to post review: %w", err)
 		}
 	} else {
+		log.Println("No comments to post. Submitting a general comment.")
 		vcsClient.PostGeneralComment(ctx, prDetails.Owner, prDetails.Repo, prDetails.PRNumber, "✅ AI Review Complete: No issues found. Great work!")
 	}
 
 	resultMessage := fmt.Sprintf("Review complete. Submitted %d comments.", len(allComments))
 	log.Println(resultMessage)
 	return resultMessage, nil
+}
+
+// sanitizeJSONString removes common JSON formatting errors from LLM responses.
+func sanitizeJSONString(s string) string {
+	startIndex := strings.Index(s, "[")
+	endIndex := strings.LastIndex(s, "]")
+	if startIndex == -1 || endIndex == -1 || endIndex < startIndex {
+		return ""
+	}
+	s = s[startIndex : endIndex+1]
+	replacer := strings.NewReplacer("\n", " ", "\t", " ", "\r", " ")
+	s = replacer.Replace(s)
+	re := regexp.MustCompile(`,(\s*[\}\]])`)
+	return re.ReplaceAllString(s, "$1")
 }
 
 // analyzeChunk sends a single diff chunk to the LLM.
@@ -110,49 +126,23 @@ func analyzeChunk(ctx context.Context, g *genkit.Genkit, cfg *config.Config, chu
 		return nil, fmt.Errorf("failed to get text from LLM response")
 	}
 
-	startIndex := strings.Index(responseText, "[")
-	endIndex := strings.LastIndex(responseText, "]")
-	if startIndex == -1 || endIndex == -1 || endIndex < startIndex {
-		return nil, nil // No valid JSON found
+	sanitizedJSON := sanitizeJSONString(responseText)
+	if sanitizedJSON == "" {
+		log.Printf("Could not find valid JSON array in LLM response. Raw response: '%s'", responseText)
+		return nil, nil
 	}
-	jsonString := responseText[startIndex : endIndex+1]
-
-	// Sanitize the JSON string to remove invalid characters like tabs before parsing.
-	sanitizedJSON := strings.ReplaceAll(jsonString, "\t", " ")
 
 	var comments []ReviewComment
 	if err := json.Unmarshal([]byte(sanitizedJSON), &comments); err != nil {
+		log.Printf("Failed to unmarshal sanitized JSON. Sanitized: '%s', Error: %v", sanitizedJSON, err)
 		return nil, fmt.Errorf("failed to parse LLM JSON response: %w", err)
 	}
 	return comments, nil
 }
 
-// findPositionForLineContent iterates through a diff hunk to find the 1-based position of a specific line.
-func findPositionForLineContent(chunk *diffparser.DiffChunk, lineContent string) (int, error) {
-	// A more robust normalization function that replaces all sequences of whitespace
-	// (spaces, tabs, etc.) with a single space for a more reliable comparison.
-	normalize := func(s string) string {
-		return strings.Join(strings.Fields(s), " ")
-	}
-
-	// Normalize the target content from the LLM.
-	target := normalize(lineContent)
-
-	lines := strings.Split(chunk.CodeSnippet, "\n")
-	for i, line := range lines {
-		// Normalize the current line from the diff for comparison.
-		current := normalize(line)
-		if current == target {
-			// The position is the 1-based index of the line in the hunk.
-			return i + 1, nil
-		}
-	}
-	return -1, fmt.Errorf("line content not found in diff hunk: '%s'", lineContent)
-}
-
 // preparePrompt populates the Go template for the LLM prompt.
 func preparePrompt(promptTmpl, filePath, codeSnippet string) (string, error) {
-	tmpl, err := template.New(constants.REVIEW_PROMPT).Parse(promptTmpl)
+	tmpl, err := template.New("review_prompt").Parse(promptTmpl)
 	if err != nil {
 		return "", err
 	}

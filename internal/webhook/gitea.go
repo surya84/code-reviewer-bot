@@ -83,7 +83,6 @@ func (h *GiteaWebhookHandler) processPullRequest(payload *GiteaPullRequestHook) 
 		PRNumber: int(payload.Number),
 	}
 
-	// CORRECTED: Explicitly create a Gitea client, ignoring the static config provider.
 	vcsClient := vcs.NewGiteaClient(ctx, h.config.VCS.Gitea.BaseURL, h.config.VCS.Gitea.Token)
 
 	_, err := reviewer.RunReview(ctx, h.g, prDetails, h.config, vcsClient)

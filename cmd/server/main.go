@@ -32,7 +32,7 @@ func main() {
 
 	router := gin.Default()
 
-	// Try to set up the GitHub handler.
+	// set up the GitHub handler.
 	githubWebhookSecret := os.Getenv("GITHUB_WEBHOOK_SECRET")
 	githubToken := os.Getenv("GITHUB_TOKEN")
 	if githubWebhookSecret != "" && githubToken != "" {
@@ -48,7 +48,7 @@ func main() {
 		log.Println("INFO: GITHUB_WEBHOOK_SECRET or GITHUB_TOKEN not found. Skipping GitHub handler setup.")
 	}
 
-	// Try to set up the Gitea handler.
+	// set up the Gitea handler.
 	giteaWebhookSecret := os.Getenv("GITEA_WEBHOOK_SECRET")
 	giteaToken := os.Getenv("GITEA_TOKEN")
 	if giteaWebhookSecret != "" && giteaToken != "" {
@@ -63,8 +63,6 @@ func main() {
 	} else {
 		log.Println("INFO: GITEA_WEBHOOK_SECRET or GITEA_TOKEN not found. Skipping Gitea handler setup.")
 	}
-
-	// --- End of Handler Registration ---
 
 	router.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, "AI Code Reviewer Bot is running.")

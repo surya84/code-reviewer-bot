@@ -20,7 +20,7 @@ type GiteaClient struct {
 // NewGiteaClient creates a new client for interacting with the Gitea API.
 func NewGiteaClient(ctx context.Context, baseURL, token string) *GiteaClient {
 	return &GiteaClient{
-		BaseURL:    baseURL, // e.g., "https://gitea.com/api/v1"
+		BaseURL:    baseURL,
 		Token:      token,
 		HTTPClient: &http.Client{},
 	}
@@ -44,33 +44,32 @@ func (g *GiteaClient) GetPRDiff(ctx context.Context, owner, repo string, prIndex
 	if err != nil {
 		return "", err
 	}
-
 	resp, err := g.HTTPClient.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("Gitea API returned status %d for GetPRDiff", resp.StatusCode)
 	}
-
 	body, err := io.ReadAll(resp.Body)
 	return string(body), err
 }
 
-// GetPRCommitID is not needed for Gitea's comment API, so we can return an empty string.
+// GetPRCommitID is not used by this Gitea client strategy, but is required by the interface.
 func (g *GiteaClient) GetPRCommitID(ctx context.Context, owner, repo string, prIndex int) (string, error) {
-	return "", nil // Not needed for the general comment strategy.
+	return "", nil
 }
 
 // PostReview posts comments to a Gitea pull request by creating general issue comments.
+// This is the robust fallback strategy to avoid the 405 Method Not Allowed error.
 func (g *GiteaClient) PostReview(ctx context.Context, owner, repo string, prIndex int, comments []*Comment, commitID string) error {
 	for _, comment := range comments {
-		// Format the comment body to include file and line information.
-		formattedBody := fmt.Sprintf("**Review comment for `%s`:**\n\n> %s", comment.Path, comment.Body)
+		// Format the comment body to include all necessary context (file and line).
+		formattedBody := fmt.Sprintf("**Review for `%s` (Line %d):**\n\n> %s", comment.Path, comment.Line, comment.Body)
 		if err := g.PostGeneralComment(ctx, owner, repo, prIndex, formattedBody); err != nil {
-			log.Printf("Failed to post comment to Gitea PR #%d: %v", prIndex, err)
+			// Log the error but continue trying to post other comments.
+			log.Printf("Failed to post general comment to Gitea PR #%d: %v", prIndex, err)
 		}
 	}
 	return nil
@@ -95,8 +94,9 @@ func (g *GiteaClient) PostGeneralComment(ctx context.Context, owner, repo string
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("Gitea API returned status %d for PostGeneralComment: %s", resp.StatusCode, string(body))
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("Gitea API returned status %d for PostGeneralComment: %s", resp.StatusCode, string(respBody))
 	}
+	log.Printf("Successfully posted general comment to Gitea PR #%d", prIndex)
 	return nil
 }
