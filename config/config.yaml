@@ -8,8 +8,8 @@ vcs:
     token: ${GITEA_TOKEN}
 
 llm:
-  provider: "googleai" # or "openai"
-  model_name: "googleai/gemini-1.5-flash" 
+  provider: ${LLM_PROVIDER}
+  model_name: ${LLM_MODEL_NAME} 
   #model_name: "openai/gpt-3.5-turbo" # The specific model identifier for OpenAI
 
   googleai:
@@ -17,17 +17,10 @@ llm:
   openai:
     api_key: ${OPENAI_API_KEY}
 
+review_prompt_file: "/Users/suryateja.mulabagal/Documents/code-reviewer-bot/config/prompt_base.txt"
+
 # The prompt template sent to the LLM for code review.
 review_prompt: >
-  You are an expert code reviewer. Your task is to analyze the following code snippet from the file `{{.FilePath}}`.
-  The lines starting with '+' are new additions.
-  
-  **Instructions:**
-  1.  Provide suggestions for improvements, potential bugs,naming conventions or performance issues **only on the lines that begin with a '+'**.
-  2.  **Do not comment on code that is correct.**
-  3.  **Do not invent language syntax rules.** For example, Go does not use semicolons. Stick to factual, verifiable code quality issues.
-  4.  If there are no issues in the added code, return an empty JSON array `[]`.
-
   **Output Format:**
   Provide your response as a valid JSON array of objects. Each object must have:
   - "line_content": (string) The **full, exact text** of the single line of code you are commenting on, including the leading '+'.
@@ -44,4 +37,5 @@ review_prompt: >
   **Code Snippet to Review:**
   ```diff
   {{.CodeSnippet}}
+  ```
   

@@ -61,11 +61,15 @@ func (g *GiteaClient) GetPRCommitID(ctx context.Context, owner, repo string, prI
 	return "", nil
 }
 
-// PostReview posts comments to a Gitea pull request by creating general issue comments.
-// This is the robust fallback strategy to avoid the 405 Method Not Allowed error.
+// PostReview for Gitea now iterates and posts each comment individually to the main conversation thread.
 func (g *GiteaClient) PostReview(ctx context.Context, owner, repo string, prIndex int, comments []*Comment, commitID string) error {
+	if len(comments) == 0 {
+		return nil
+	}
+
 	for _, comment := range comments {
 		// Format the comment body to include all necessary context (file and line).
+		// This creates a clear, readable comment in the "Conversation" tab.
 		formattedBody := fmt.Sprintf("**Review for `%s` (Line %d):**\n\n> %s", comment.Path, comment.Line, comment.Body)
 		if err := g.PostGeneralComment(ctx, owner, repo, prIndex, formattedBody); err != nil {
 			// Log the error but continue trying to post other comments.
@@ -76,12 +80,11 @@ func (g *GiteaClient) PostReview(ctx context.Context, owner, repo string, prInde
 }
 
 // PostGeneralComment posts a general comment to the PR's issue thread.
+// This is the correct and stable endpoint for posting to the "Conversation" tab.
 func (g *GiteaClient) PostGeneralComment(ctx context.Context, owner, repo string, prIndex int, body string) error {
-	// Gitea uses the issues endpoint for general comments on a PR.
 	endpoint := fmt.Sprintf("%s/repos/%s/%s/issues/%d/comments", g.BaseURL, owner, repo, prIndex)
 	payload := map[string]string{"body": body}
 	jsonBody, _ := json.Marshal(payload)
-
 	req, err := g.newRequest(ctx, "POST", endpoint, bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return err
