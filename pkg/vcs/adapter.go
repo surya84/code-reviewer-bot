@@ -3,12 +3,11 @@ package vcs
 import "context"
 
 // Comment represents a single review comment to be posted.
-// It holds all possible location data; each client will use what it needs.
 type Comment struct {
 	Body     string
 	Path     string
-	Position int // For GitHub API: the line number within the diff hunk.
-	Line     int // For Gitea API: the absolute line number in the file.
+	Position int
+	Line     int
 }
 
 // VCSAdapter defines the contract for a Version Control System client.

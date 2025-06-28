@@ -31,9 +31,12 @@ jobs:
           # The context variables are available in the workflow.
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          # --- Dynamic LLM Configuration ---
+          # These secrets now control which AI is used.
+          LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
+          LLM_MODEL_NAME: ${{ secrets.LLM_MODEL_NAME }}
           
-          # You must add these as secrets in your GitHub repository settings.
-          # Settings > Secrets and variables > Actions > New repository secret
+        
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITTY_TOKEN: ${{ secrets.GITTY_TOKEN }}
