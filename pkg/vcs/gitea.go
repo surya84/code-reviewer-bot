@@ -1,105 +1,101 @@
 package vcs
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
+	"strings"
+
+	"code.gitea.io/sdk/gitea"
 )
 
-// GiteaClient implements the VCSAdapter for Gitea.
+// GiteaClient implements the VCSAdapter for Gitea using the official Go SDK.
 type GiteaClient struct {
-	BaseURL    string
-	Token      string
-	HTTPClient *http.Client
+	client *gitea.Client
 }
 
 // NewGiteaClient creates a new client for interacting with the Gitea API.
 func NewGiteaClient(ctx context.Context, baseURL, token string) *GiteaClient {
-	return &GiteaClient{
-		BaseURL:    baseURL,
-		Token:      token,
-		HTTPClient: &http.Client{},
-	}
-}
-
-func (g *GiteaClient) newRequest(ctx context.Context, method, url string, body io.Reader) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	c, err := gitea.NewClient(baseURL, gitea.SetToken(token))
 	if err != nil {
-		return nil, err
+		log.Fatalf("Failed to create Gitea client: %v", err)
 	}
-	req.Header.Set("Authorization", "token "+g.Token)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	return req, nil
+	return &GiteaClient{client: c}
 }
 
 // GetPRDiff fetches a Pull Request's diff from Gitea.
 func (g *GiteaClient) GetPRDiff(ctx context.Context, owner, repo string, prIndex int) (string, error) {
-	endpoint := fmt.Sprintf("%s/repos/%s/%s/pulls/%d.diff", g.BaseURL, owner, repo, prIndex)
-	req, err := g.newRequest(ctx, "GET", endpoint, nil)
+	diff, _, err := g.client.GetPullRequestDiff(owner, repo, int64(prIndex), gitea.PullRequestDiffOptions{})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("Gitea SDK failed to get PR diff: %w", err)
 	}
-	resp, err := g.HTTPClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("Gitea API returned status %d for GetPRDiff", resp.StatusCode)
-	}
-	body, err := io.ReadAll(resp.Body)
-	return string(body), err
+	return string(diff), nil
 }
 
-// GetPRCommitID is not used by this Gitea client strategy, but is required by the interface.
+// GetPRCommitID fetches the SHA of the HEAD commit of a Gitea Pull Request.
 func (g *GiteaClient) GetPRCommitID(ctx context.Context, owner, repo string, prIndex int) (string, error) {
-	return "", nil
+	pr, _, err := g.client.GetPullRequest(owner, repo, int64(prIndex))
+	if err != nil {
+		return "", fmt.Errorf("Gitea SDK failed to get PR details: %w", err)
+	}
+	if pr.Head == nil || pr.Head.Sha == "" {
+		return "", fmt.Errorf("Gitea API response did not contain HEAD commit SHA")
+	}
+	return pr.Head.Sha, nil
 }
 
-// PostReview for Gitea now iterates and posts each comment individually to the main conversation thread.
+// PostReview submits a single review to a Gitea pull request with multiple line-specific comments.
+// This is the definitive, robust method.
 func (g *GiteaClient) PostReview(ctx context.Context, owner, repo string, prIndex int, comments []*Comment, commitID string) error {
 	if len(comments) == 0 {
-		return nil
+		return nil // Nothing to do.
 	}
 
-	for _, comment := range comments {
-		// Format the comment body to include all necessary context (file and line).
-		// This creates a clear, readable comment in the "Conversation" tab.
-		formattedBody := fmt.Sprintf("**Review for `%s` (Line %d):**\n\n> %s", comment.Path, comment.Line, comment.Body)
-		if err := g.PostGeneralComment(ctx, owner, repo, prIndex, formattedBody); err != nil {
-			// Log the error but continue trying to post other comments.
-			log.Printf("Failed to post general comment to Gitea PR #%d: %v", prIndex, err)
-		}
+	// The SDK's CreatePullReview function takes a list of gitea.CreatePullReviewComment.
+	var giteaComments []gitea.CreatePullReviewComment
+	for _, c := range comments {
+		// CORRECTED: The Gitea API's review system requires the absolute line number in the new file,
+		// which is correctly calculated and passed in the `c.Line` field.
+		giteaComments = append(giteaComments, gitea.CreatePullReviewComment{
+			Path:       c.Path,
+			Body:       c.Body,
+			NewLineNum: int64(c.Line),
+		})
 	}
+
+	// Create the review options payload.
+	opts := gitea.CreatePullReviewOptions{
+		State:    gitea.ReviewStateComment, // Post comments without changing the PR state.
+		CommitID: commitID,
+		Comments: giteaComments,
+	}
+
+	// Call the SDK function to create the review.
+	_, _, err := g.client.CreatePullReview(owner, repo, int64(prIndex), opts)
+	if err != nil {
+		// Fallback for older Gitea instances that might not support batch reviews.
+		if strings.Contains(err.Error(), "404 Not Found") {
+			log.Println("WARNING: Gitea instance may be too old to support batch reviews. Falling back to posting a single summary comment.")
+			var summary strings.Builder
+			summary.WriteString("### AI Code Review Summary\n\nI was unable to post inline comments as this Gitea version might not support it. Here is a summary of the feedback:\n\n")
+			for _, c := range comments {
+				summary.WriteString(fmt.Sprintf("- **File `%s` (Line %d):** %s\n", c.Path, c.Line, c.Body))
+			}
+			return g.PostGeneralComment(ctx, owner, repo, prIndex, summary.String())
+		}
+		return fmt.Errorf("Gitea SDK failed to create review: %w", err)
+	}
+
+	log.Printf("Successfully submitted review to Gitea PR #%d", prIndex)
 	return nil
 }
 
 // PostGeneralComment posts a general comment to the PR's issue thread.
-// This is the correct and stable endpoint for posting to the "Conversation" tab.
 func (g *GiteaClient) PostGeneralComment(ctx context.Context, owner, repo string, prIndex int, body string) error {
-	endpoint := fmt.Sprintf("%s/repos/%s/%s/issues/%d/comments", g.BaseURL, owner, repo, prIndex)
-	payload := map[string]string{"body": body}
-	jsonBody, _ := json.Marshal(payload)
-	req, err := g.newRequest(ctx, "POST", endpoint, bytes.NewBuffer(jsonBody))
+	opts := gitea.CreateIssueCommentOption{Body: body}
+	_, _, err := g.client.CreateIssueComment(owner, repo, int64(prIndex), opts)
 	if err != nil {
-		return err
+		return fmt.Errorf("Gitea SDK failed to post general comment: %w", err)
 	}
-
-	resp, err := g.HTTPClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("Gitea API returned status %d for PostGeneralComment: %s", resp.StatusCode, string(respBody))
-	}
-	log.Printf("Successfully posted general comment to Gitea PR #%d", prIndex)
 	return nil
 }
