@@ -4,7 +4,7 @@ vcs:
   github:
     token: ${GITHUB_TOKEN} # This is automatically provided by GitHub Actions
   gitea: 
-    base_url: "https://gitea.com/api/v1" 
+    base_url: "https://gitea.com"
     token: ${GITEA_TOKEN}
 
 llm:
