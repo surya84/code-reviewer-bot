@@ -10,6 +10,5 @@ COPY . .
 # Build binary for the platform Docker is building for
 RUN go build -o reviewer ./cmd/reviewer 
 
-COPY config/ ./config/
 
 ENTRYPOINT ["/app/reviewer"]
