@@ -17,7 +17,7 @@ llm:
   openai:
     api_key: ${OPENAI_API_KEY}
 
-review_prompt_file: "config/prompt_base.txt"
+review_prompt_file: "/app/config/prompt_base.txt"
 
 # The prompt template sent to the LLM for code review.
 review_prompt: >
