@@ -8,8 +8,8 @@ RUN go mod download
 COPY . .
 
 # Build binary for the platform Docker is building for
-RUN CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/reviewer
+RUN go build -o reviewer ./cmd/reviewer 
 
 COPY config/ ./config/
 
-CMD ["./server"]
+ENTRYPOINT ["/app/reviewer"]
