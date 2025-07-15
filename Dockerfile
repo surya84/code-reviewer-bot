@@ -1,14 +1,15 @@
-# Start from official Golang image
-FROM golang:1.24.4-alpine
+FROM golang:1.24
 
-# Set working directory inside container
 WORKDIR /app
 
-# Copy all files
+COPY go.mod go.sum ./
+RUN go mod download
+
 COPY . .
 
-# Build the Go binary
-RUN go build -o reviewer ./cmd/reviewer
+# Build binary for the platform Docker is building for
+RUN CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/reviewer
 
-# Set entrypoint
-ENTRYPOINT ["/app/reviewer"]
+COPY config/ ./config/
+
+CMD ["./server"]
