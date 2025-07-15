@@ -20,7 +20,7 @@ func main() {
 	log.Println("Starting AI Code Reviewer in server mode with Gin...")
 	ctx := context.Background()
 
-	cfg, err := config.LoadConfig("config/config.yaml")
+	cfg, err := config.LoadConfig("config.yaml")
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
