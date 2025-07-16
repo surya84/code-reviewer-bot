@@ -1,14 +1,10 @@
-FROM golang:1.24
+FROM golang:1.24.4-alpine
 
 WORKDIR /app
 
-COPY go.mod go.sum ./
-RUN go mod download
-
 COPY . .
 
-# Build binary for the platform Docker is building for
-RUN go build -o reviewer ./cmd/reviewer 
+RUN go mod download
+RUN go build -o /usr/local/bin/code-reviewer-bot .
 
-
-ENTRYPOINT ["/app/reviewer"]
+ENTRYPOINT ["code-reviewer-bot"]

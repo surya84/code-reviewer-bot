@@ -1,0 +1,9 @@
+name: "Code Reviewer Bot"
+description: "Runs AI-powered code reviews on GitHub pull requests"
+
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  args:
+    - "--config"
+    - "/config/config.yaml"
