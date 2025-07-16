@@ -12,7 +12,7 @@ inputs:
 runs:
   using: "docker"
   image: "Dockerfile"
-  entrypoint: "./code-reviewer-bot"
+  entrypoint: "/app/code-reviewer-bot"
   args:
     - "--config=/app/config/config.yaml"
 
