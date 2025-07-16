@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -85,41 +86,28 @@ func initGenkit(ctx context.Context, cfg *config.Config) (*genkit.Genkit, error)
 }
 
 func getPRDetails() (*reviewer.PRDetails, error) {
-	// Priority 1: CLI flags
-	if repoOwner != "" && repoName != "" && prNumber > 0 {
-		return &reviewer.PRDetails{
-			Owner:    repoOwner,
-			Repo:     repoName,
-			PRNumber: prNumber,
-		}, nil
-	}
-
-	// Priority 2: GitHub Actions env vars
 	repoSlug := os.Getenv("GITHUB_REPOSITORY")
 	if repoSlug == "" {
-		owner := os.Getenv("REPO_OWNER")
-		name := os.Getenv("REPO_NAME")
-		if owner == "" || name == "" {
-			return nil, fmt.Errorf("missing REPO_OWNER/REPO_NAME or GITHUB_REPOSITORY")
-		}
-		repoSlug = fmt.Sprintf("%s/%s", owner, name)
+		return nil, fmt.Errorf("GITHUB_REPOSITORY is not set")
 	}
-	parts := split(repoSlug, "/")
+	parts := strings.Split(repoSlug, "/")
 	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid GITHUB_REPOSITORY format: %s", repoSlug)
+		return nil, fmt.Errorf("invalid GITHUB_REPOSITORY format: got '%s', expected 'owner/repo'", repoSlug)
 	}
+
 	prStr := os.Getenv("PR_NUMBER")
 	if prStr == "" {
-		return nil, fmt.Errorf("missing PR_NUMBER env var")
+		return nil, fmt.Errorf("PR_NUMBER is not set")
 	}
-	prNum, err := strconv.Atoi(prStr)
+	prNumber, err := strconv.Atoi(prStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid PR_NUMBER: %w", err)
+		return nil, fmt.Errorf("invalid PR_NUMBER: expected integer, got '%s'", prStr)
 	}
+
 	return &reviewer.PRDetails{
 		Owner:    parts[0],
 		Repo:     parts[1],
-		PRNumber: prNum,
+		PRNumber: prNumber,
 	}, nil
 }
 
