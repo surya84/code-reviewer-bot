@@ -24,4 +24,4 @@ COPY --from=builder /app/code-reviewer-bot .
 
 COPY --from=builder /app/config/ ./config/
 
-ENTRYPOINT ["./code-reviewer-bot"]
+ENTRYPOINT ["code-reviewer-bot"]
