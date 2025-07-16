@@ -27,4 +27,4 @@ COPY --from=builder /app/config/ ./config/
 RUN chmod +x ./code-reviewer-bot
 
 # Run the application
-ENTRYPOINT ["./code-reviewer-bot"]
+ENTRYPOINT ["/app/code-reviewer-bot"]
