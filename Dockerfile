@@ -1,26 +1,27 @@
-# --- Build Stage ---
+# Build stage
 FROM golang:1.24.4-alpine AS builder
+
+RUN apk add --no-cache git
 
 WORKDIR /app
 
-COPY go.mod ./
-COPY go.sum ./
+COPY go.mod go.sum ./
+
 RUN go mod download
 
 COPY . .
 
-# Build the CLI binary
-RUN go build -o code-reviewer-bot ./cmd/reviewer
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o code-reviewer-bot .
 
-# --- Runtime Stage ---
+# Runtime stage
 FROM alpine:latest
 
-RUN apk add --no-cache ca-certificates
+RUN apk --no-cache add ca-certificates
 
 WORKDIR /app
 
-# Copy the binary and config folder
-COPY --from=builder /app/code-reviewer-bot /usr/local/bin/code-reviewer-bot
-COPY --from=builder /app/config /app/config
+COPY --from=builder /app/code-reviewer-bot .
 
-ENTRYPOINT ["code-reviewer-bot"]
+COPY --from=builder /app/config/ ./config/
+
+ENTRYPOINT ["./code-reviewer-bot"]
