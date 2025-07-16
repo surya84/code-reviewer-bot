@@ -1,5 +1,5 @@
-
-FROM golang:1.24.4-alpine
+# --- Build Stage ---
+FROM golang:1.24.4-alpine AS builder
 
 WORKDIR /app
 
@@ -9,10 +9,18 @@ RUN go mod download
 
 COPY . .
 
-COPY config/ ./config/
+# Build the CLI binary
+RUN go build -o code-reviewer-bot ./cmd/reviewer
 
-# Build the Go binary
-RUN go build -o /usr/local/bin/code-reviewer-bot .
+# --- Runtime Stage ---
+FROM alpine:latest
 
-# Run the binary by default
+RUN apk add --no-cache ca-certificates
+
+WORKDIR /app
+
+# Copy the binary and config folder
+COPY --from=builder /app/code-reviewer-bot /usr/local/bin/code-reviewer-bot
+COPY --from=builder /app/config /app/config
+
 ENTRYPOINT ["code-reviewer-bot"]
