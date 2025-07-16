@@ -61,7 +61,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.Flags().StringVar(&configPath, "config", "config/config.yaml", "Path to config.yaml")
+	rootCmd.Flags().StringVar(&configPath, "config", "/app/config/config.yaml", "Path to config.yaml")
 	rootCmd.Flags().StringVar(&repoOwner, "repo-owner", "", "Repository owner (overrides env)")
 	rootCmd.Flags().StringVar(&repoName, "repo-name", "", "Repository name (overrides env)")
 	rootCmd.Flags().IntVar(&prNumber, "pr-number", 0, "PR number (overrides env)")
