@@ -12,11 +12,15 @@ inputs:
 runs:
   using: "docker"
   image: "Dockerfile"
-  env:
-    PR_NUMBER: ${{ inputs.pr_number }}
-    GITHUB_REPOSITORY: ${{ inputs.repository }}
-    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
-    LLM_MODEL_NAME: ${{ secrets.LLM_MODEL_NAME }}
-    GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  entrypoint: "./code-reviewer-bot"
+  args:
+    - "--config=/app/config/config.yaml"
+
+env:
+  PR_NUMBER: ${{ inputs.pr_number }}
+  GITHUB_REPOSITORY: ${{ inputs.repository }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
+  LLM_MODEL_NAME: ${{ secrets.LLM_MODEL_NAME }}
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

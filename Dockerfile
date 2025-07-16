@@ -11,7 +11,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o code-reviewer-bot .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflags '-w -s' -o code-reviewer-bot .
 
 # Runtime stage
 FROM alpine:latest
@@ -24,4 +24,7 @@ COPY --from=builder /app/code-reviewer-bot .
 
 COPY --from=builder /app/config/ ./config/
 
-ENTRYPOINT ["code-reviewer-bot"]
+RUN chmod +x ./code-reviewer-bot
+
+# Run the application
+ENTRYPOINT ["./code-reviewer-bot"]
