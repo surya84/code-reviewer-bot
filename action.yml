@@ -1,26 +1,12 @@
-name: "AI Code Reviewer Bot"
-description: "Performs AI-based code review on Pull Requests using OpenAI or Gemini"
+name: AI Code Reviewer
+description: LLM-powered code review for PRs
 
 inputs:
-  pr_number:
-    description: "Pull Request number"
+  GITHUB_TOKEN:
     required: true
-  repository:
-    description: "Repository slug (e.g., owner/repo)"
+  API_KEY:
     required: true
 
 runs:
-  using: "docker"
-  image: "Dockerfile.cmd"
-  entrypoint: "/app/code-reviewer-bot"
-  args:
-    - "--config=/app/config/config.yaml"
-
-env:
-  PR_NUMBER: ${{ inputs.pr_number }}
-  GITHUB_REPOSITORY: ${{ inputs.repository }}
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
-  LLM_MODEL_NAME: ${{ secrets.LLM_MODEL_NAME }}
-  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  using: docker
+  image: Dockerfile.cmd
